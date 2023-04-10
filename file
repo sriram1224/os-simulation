@@ -1,137 +1,102 @@
-class FileSystem:
-    def _init_(self, total_blocks):
-        self.disk = [None] * total_blocks
-        self.total_blocks = total_blocks
-        self.used_blocks = 0
+disk = [None] * 1024 # 1024 blocks in the disk
+total_blocks = len(disk)
+used_blocks = 0
 
-    def add_file(self, name, size):
-        # check if there is enough free space on the disk
-        if  size <= self.total_blocks:
-            start_block = None
-            for i in range(self.total_blocks):
-                if self.disk[i] == None:
-                    if start_block == None:
-                        start_block = i
-                    size -= 1
-                    self.disk[i] = (name, start_block)
-                    if size == 0:
-                        break
-            self.used_blocks += size
+def add_file(name, size):
+    global used_blocks
+    free_blocks = []
+    for i in range(total_blocks):
+        if disk[i] == None:
+            free_blocks.append(i)
+            if len(free_blocks) == size:
+                for j in free_blocks:
+                    disk[j] = name
+                used_blocks += size
+                return True
+        else:
+            free_blocks = []
+    return False
+
+def delete_file(name):
+    flg = False
+    global used_blocks
+    for i in range(total_blocks):
+        if disk[i] == name:
+            flg = True
+            disk[i] = None
+            used_blocks -= 1
+    return flg
+
+def rename_file(old_name, new_name):
+    flg = False
+    for i in range(total_blocks):
+        if disk[i] == old_name:
+            flg = True
+            disk[i] = new_name
+    return flg
+
+def move_file(name, new_location):
+    global used_blocks
+    size = 0
+    old_location = []
+    for i in range(total_blocks):
+        if disk[i] == name:
+            size += 1
+            old_location.append(i)
+    free_blocks = 0
+    for i in range(new_location, total_blocks):
+        if disk[i] == None:
+            free_blocks += 1
+        else:
+            free_blocks = 0
+        if free_blocks == size:
+            for j in old_location:
+                disk[j] = None
+            for j in range(new_location, new_location+size):
+                disk[j] = name
+            used_blocks -= size
             return True
-        else:
-            return False
+    return False
 
-    def delete_file(self, name):
-        found = False
-        for i in range(self.total_blocks):
-            if self.disk[i] != None and self.disk[i][0] == name:
-                found = True
-                start_block = self.disk[i][1]
-                for j in range(start_block, self.total_blocks):
-                    if self.disk[j] == None or self.disk[j][1] != start_block:
-                        break
-                    self.disk[j] = None
-                self.used_blocks -= j - start_block
-                break
-        if found:
-            return True
-        else:
-            return False
+def calculate_fragmentation():
+    free_blocks = 0
+    for i in range(total_blocks):
+        if disk[i] == None:
+            free_blocks += 1
+    return free_blocks
 
-    def rename_file(self, old_name, new_name):
-        found = False
-        for i in range(self.total_blocks):
-            if self.disk[i] != None and self.disk[i][0] == old_name:
-                found = True
-                self.disk[i] = (new_name, self.disk[i][1])
-        if found:
-            return True
-        else:
-            return False
-
-    def move_file(self, name, new_location):
-        size = 0
-        start_block = None
-        for i in range(self.total_blocks):
-            if self.disk[i] != None and self.disk[i][0] == name:
-                if start_block == None:
-                    start_block = self.disk[i][1]
-                size += 1
-                self.disk[i] = None
-        if size == 0:
-            return False
-        if new_location + size > self.total_blocks:
-            return False
-        for i in range(new_location, self.total_blocks):
-            if self.disk[i] == None:
-                self.disk[i] = (name, start_block)
-                size -= 1
-                if size == 0:
-                    break
-        self.used_blocks += size
-        return True
-
-    def calculate_fragmentation(self):
-        free_blocks = 0
-        start_block = None
-        for i in range(self.total_blocks):
-            if self.disk[i] == None:
-                free_blocks += 1
-            elif start_block == None:
-                start_block = i
-        if start_block == None:
-            return 0
-        else:
-            return free_blocks - (self.total_blocks - self.used_blocks)
-
-    def print_disk(self):
-        for i in range(self.total_blocks):
-            if self.disk[i] == None:
-                print(" . ", end="")
-            else:
-                print(" " + self.disk[i][0] + " ", end="")
-        print()
-
-
-fs = FileSystem()
-
+time = -1
 print("==++Choice Menu++==")
-print(
-    "1) Creating a File\n2) Deleting a File\n3) Renaming a File\n4) Moving a File\n5) Print Disk\n6) Calculate Fragmentation\n0) Stopping the Simulation")
+print("1) Creating a File\n2) Deleting a File\n3) Renaming a File\n4) Moveing a File\n5) Calculate Fragmentation\n0) Stopping the Simulation")
 print("===================")
-
-while True:
-    choice = input("Enter Choice: ")
-
-    if choice == '1':
-        name = input("Enter name of file to be added with extension: ")
+while(time!=0):
+    time = int(input("Enter Choice: "))
+    if(time==1):
+        name = input("Enter name of file to be added with extention: ")
         size = int(input("Enter size of file in MB: "))
-        if fs.add_file(name, size):
-            print("The file has been successfully added.")
+        if add_file(name,size):
+            print("The file has been sucessfully added.")
         else:
-            print("The file has not been added due to insufficient space.")
-
-    elif choice == '2':
-        name = input("Enter name of file to be removed with extension: ")
-        if fs.delete_file(name):
-            print("The file has been successfully removed.")
+            print("The file has not been added cause of insufficient space.")
+    elif(time==2):
+        name = input("Enter name of file to be removed with extention: ")
+        if delete_file(name):
+            print("The file has been sucessfully removed.")
         else:
-            print("The file was not removed because it does not exist.")
-
-    elif choice == '3':
-        old_name = input("Enter old name of file to be renamed with extension: ")
-        new_name = input("Enter new name of file to be renamed with extension: ")
-        if fs.rename_file(old_name, new_name):
-            print("The file has been successfully renamed.")
+            print("The file has not been removed cause it doesnt exist.")
+    elif(time==3):
+        name1 = input("Enter old name of file to be renamed with extention: ")
+        name2 = input("Enter new name of file to be renamed with extention: ")
+        if(rename_file(name1,name2)):
+            print("The file has been sucessfully renamed.")
         else:
-            print("The file was not renamed because it does not exist.")
-
-            
-    elif choice == '4':
-        name = input("Enter name of file to be moved with extension: ")
-        new_location = int(input("Enter the location at which you need to move the file: "))
-        if fs.move_file(name, new_location):
-            print("The file has been successfully moved to the new location.")
+            print("The file wasn't renamed as it did not exist.")
+    elif(time==4):
+        name = input("Enter name of file to be moved with extention: ")
+        location = int(input("Enter the location at which you need to move the file: "))
+        if(move_file(name,location)):
+            print("The file has been sucessfully moved to the new location")
         else:
-            print("The file does not exist or there is not enough space at the new location.")
-            
+            print("The file doesn't exist or not enough space at new location")
+    elif(time==5):
+        print("No. of Fragmented blocks are: {}".format(calculate_fragmentation()))
