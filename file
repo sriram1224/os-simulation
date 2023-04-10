@@ -1,135 +1,137 @@
-import random
-
-# Define disk size and block size
-DISK_SIZE = 100
-BLOCK_SIZE = 10
-
-# Define file types and their respective sizes
-FILE_TYPES = {
-    'document': 5,
-    'spreadsheet': 10,
-    'image': 20
-}
-
-
-class File:
-    def _init_(self, name, type, size):
-        self.name = name
-        self.type = type
-        self.size = size
-
-
 class FileSystem:
-    def _init_(self, allocation_algorithm):
-        self.disk = [None] * DISK_SIZE
-        self.allocation_algorithm = allocation_algorithm
-        self.files = []
+    def _init_(self, total_blocks):
+        self.disk = [None] * total_blocks
+        self.total_blocks = total_blocks
+        self.used_blocks = 0
 
-    def allocate_blocks(self, size):
-        # Use the chosen allocation algorithm to allocate blocks
-        return self.allocation_algorithm(size, self.disk)
-
-    def add_file(self, file):
-        # Allocate blocks for the file
-        blocks = self.allocate_blocks(file.size)
-
-        # Add the file to the file system and mark the blocks as used
-        if blocks:
-            self.files.append(file)
-            for block in blocks:
-                self.disk[block] = file
+    def add_file(self, name, size):
+        # check if there is enough free space on the disk
+        if  size <= self.total_blocks:
+            start_block = None
+            for i in range(self.total_blocks):
+                if self.disk[i] == None:
+                    if start_block == None:
+                        start_block = i
+                    size -= 1
+                    self.disk[i] = (name, start_block)
+                    if size == 0:
+                        break
+            self.used_blocks += size
+            return True
+        else:
+            return False
 
     def delete_file(self, name):
-        # Find the file with the given name and mark its blocks as unused
-        for file in self.files:
-            if file.name == name:
-                for i in range(len(self.disk)):
-                    if self.disk[i] == file:
-                        self.disk[i] = None
-                self.files.remove(file)
+        found = False
+        for i in range(self.total_blocks):
+            if self.disk[i] != None and self.disk[i][0] == name:
+                found = True
+                start_block = self.disk[i][1]
+                for j in range(start_block, self.total_blocks):
+                    if self.disk[j] == None or self.disk[j][1] != start_block:
+                        break
+                    self.disk[j] = None
+                self.used_blocks -= j - start_block
                 break
+        if found:
+            return True
+        else:
+            return False
 
     def rename_file(self, old_name, new_name):
-        # Find the file with the given old name and rename it
-        for file in self.files:
-            if file.name == old_name:
-                file.name = new_name
-                break
+        found = False
+        for i in range(self.total_blocks):
+            if self.disk[i] != None and self.disk[i][0] == old_name:
+                found = True
+                self.disk[i] = (new_name, self.disk[i][1])
+        if found:
+            return True
+        else:
+            return False
 
-    def move_file(self, name, new_size):
-        # Find the file with the given name and move it to new blocks
-        for file in self.files:
-            if file.name == name:
-                # Allocate new blocks for the file and mark the old blocks as unused
-                new_blocks = self.allocate_blocks(new_size)
-                old_blocks = []
-                for i in range(len(self.disk)):
-                    if self.disk[i] == file:
-                        old_blocks.append(i)
-                        self.disk[i] = None
-                # If new blocks are available, move the file to the new blocks
-                if new_blocks:
-                    for i in range(len(new_blocks)):
-                        self.disk[new_blocks[i]] = file
-                        if i < len(old_blocks):
-                            self.disk[old_blocks[i]] = None
-                    file.size = new_size
-                # If new blocks are not available, move the file back to the old blocks
-                else:
-                    for block in old_blocks:
-                        self.disk[block] = file
-                break
+    def move_file(self, name, new_location):
+        size = 0
+        start_block = None
+        for i in range(self.total_blocks):
+            if self.disk[i] != None and self.disk[i][0] == name:
+                if start_block == None:
+                    start_block = self.disk[i][1]
+                size += 1
+                self.disk[i] = None
+        if size == 0:
+            return False
+        if new_location + size > self.total_blocks:
+            return False
+        for i in range(new_location, self.total_blocks):
+            if self.disk[i] == None:
+                self.disk[i] = (name, start_block)
+                size -= 1
+                if size == 0:
+                    break
+        self.used_blocks += size
+        return True
 
-    def check_fragmentation(self):
-        # Calculate the number of unused blocks and check for fragmentation
-        unused_blocks = 0
-        for block in self.disk:
-            if not block:
-                unused_blocks += 1
-        fragmentation = unused_blocks / DISK_SIZE
-        return fragmentation
+    def calculate_fragmentation(self):
+        free_blocks = 0
+        start_block = None
+        for i in range(self.total_blocks):
+            if self.disk[i] == None:
+                free_blocks += 1
+            elif start_block == None:
+                start_block = i
+        if start_block == None:
+            return 0
+        else:
+            return free_blocks - (self.total_blocks - self.used_blocks)
 
-    def check_wasted_space(self):
-        # Calculate the number of unused blocks that are not adjacent to other unused blocks
-        unused_blocks = []
-        for i in range(len(self.disk)):
-            if not self.disk[i]:
-                unused_blocks.append(i)
-        wasted_space = 0
-        for i in range(len(unused_blocks)):
-            if i == 0 or i == len(unused_blocks) - 1:
-                wasted_space += 1
-            elif unused_blocks[i] != unused_blocks[i - 1] + 1:
-                wasted_space += 1
-        return wasted_space
+    def print_disk(self):
+        for i in range(self.total_blocks):
+            if self.disk[i] == None:
+                print(" . ", end="")
+            else:
+                print(" " + self.disk[i][0] + " ", end="")
+        print()
 
 
-# Define first-fit allocation algorithm
-def first_fit(size, disk):
-    # Find the first block that is large enough to hold the file
-    for i in range(len(disk)):
-        if not disk[i]:
-            blocks_needed = (size + BLOCK_SIZE - 1) // BLOCK_SIZE
-            contiguous_blocks = 0
-            for j in range(i, min(i + blocks_needed, len(disk))):
-                if not disk[j]:
-                    contiguous_blocks += 1
-                else:
-                    contiguous_blocks = 0
-                if contiguous_blocks == blocks_needed:
-                    return list(range(j - blocks_needed + 1, j + 1))
-    # If no blocks are found, return an empty list
-    return []
+fs = FileSystem()
 
-# create a FileSystem instance
-fs = FileSystem(first_fit)
+print("==++Choice Menu++==")
+print(
+    "1) Creating a File\n2) Deleting a File\n3) Renaming a File\n4) Moving a File\n5) Print Disk\n6) Calculate Fragmentation\n0) Stopping the Simulation")
+print("===================")
 
-# take user input for file name, type, and size
-name = input("Enter file name: ")
-type = input("Enter file type (document, spreadsheet, or image): ")
-size = int(input("Enter file size: "))
+while True:
+    choice = input("Enter Choice: ")
 
-# create a File instance and add it to the file system
-file = File(name, type, size)
-fs.add_file(file)
+    if choice == '1':
+        name = input("Enter name of file to be added with extension: ")
+        size = int(input("Enter size of file in MB: "))
+        if fs.add_file(name, size):
+            print("The file has been successfully added.")
+        else:
+            print("The file has not been added due to insufficient space.")
 
+    elif choice == '2':
+        name = input("Enter name of file to be removed with extension: ")
+        if fs.delete_file(name):
+            print("The file has been successfully removed.")
+        else:
+            print("The file was not removed because it does not exist.")
+
+    elif choice == '3':
+        old_name = input("Enter old name of file to be renamed with extension: ")
+        new_name = input("Enter new name of file to be renamed with extension: ")
+        if fs.rename_file(old_name, new_name):
+            print("The file has been successfully renamed.")
+        else:
+            print("The file was not renamed because it does not exist.")
+
+            
+    elif choice == '4':
+        name = input("Enter name of file to be moved with extension: ")
+        new_location = int(input("Enter the location at which you need to move the file: "))
+        if fs.move_file(name, new_location):
+            print("The file has been successfully moved to the new location.")
+        else:
+            print("The file does not exist or there is not enough space at the new location.")
+            
